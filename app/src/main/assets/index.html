@@ -1,0 +1,26 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { margin: 0; padding: 24px 16px; font-family: sans-serif; color: #fff; background: transparent; }
+    .card { background: rgba(255,255,255,.12); border-radius: 20px; padding: 16px; margin-bottom: 12px; }
+    h1 { font-size: 28px; margin: 0 0 16px; }
+    #clock { font-size: 48px; font-weight: 300; }
+  </style>
+</head>
+<body>
+  <h1>My Feed</h1>
+  <div class="card"><div id="clock"></div><div id="date"></div></div>
+  <div class="card">Edit <code>app/src/main/assets/index.html</code> to change this page.</div>
+  <script>
+    function tick() {
+      const d = new Date();
+      clock.textContent = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      date.textContent = d.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' });
+    }
+    tick(); setInterval(tick, 1000);
+  </script>
+</body>
+</html>
