@@ -9,6 +9,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -23,6 +24,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
@@ -43,7 +45,12 @@ import kotlinx.coroutines.withContext
  * goes straight to the dialer for people who just want to call.
  */
 @Composable
-fun ContactsCard(limit: Int, refreshKey: Int, modifier: Modifier = Modifier) {
+fun ContactsCard(
+    limit: Int,
+    refreshKey: Int,
+    modifier: Modifier = Modifier,
+    shape: Shape = SegmentShapes.single,
+) {
     val context = LocalContext.current
     val actions = LocalHubActions.current
     val granted = ContactsRepository.hasPermission(context)
@@ -51,15 +58,24 @@ fun ContactsCard(limit: Int, refreshKey: Int, modifier: Modifier = Modifier) {
         value = if (granted) ContactsRepository.favorites(context, limit) else emptyList()
     }
 
-    HubCard(title = "Contacts", modifier = modifier) {
+    HubCard(
+        title = "Contacts",
+        modifier = modifier,
+        shape = shape,
+        // Edge to edge: the row pads its own scroll area below, so a chip scrolls out past the
+        // card's edge rather than being cut off at an invisible inset.
+        contentPadding = PaddingValues(),
+    ) {
         when {
             !granted -> HubPlaceholder(
+                modifier = Modifier.padding(horizontal = 16.dp),
                 message = "Allow access to contacts in HTML Feed's settings to see your favorites here.",
                 actionLabel = "Open settings",
                 onAction = { actions.launch(hubSettingsIntent(context)) },
             )
 
             contacts.isEmpty() -> HubPlaceholder(
+                modifier = Modifier.padding(horizontal = 16.dp),
                 message = "No favorites yet. Star someone in Contacts and they'll show up here.",
                 actionLabel = "Open Contacts",
                 onAction = { actions.launch(ContactsRepository.pickFavoritesIntent) },
@@ -67,7 +83,7 @@ fun ContactsCard(limit: Int, refreshKey: Int, modifier: Modifier = Modifier) {
 
             else -> LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.padding(top = 8.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp),
             ) {
                 items(contacts, key = { it.contactId }) { contact ->
                     ContactChip(
@@ -92,7 +108,7 @@ private fun ContactChip(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .width(64.dp)
-            .clip(MaterialTheme.shapes.medium)
+            .clip(MaterialTheme.shapes.large)
             .combinedClickable(onClick = onOpen, onLongClick = onDial)
             .padding(vertical = 4.dp),
     ) {
@@ -116,14 +132,14 @@ private fun ContactAvatar(contact: QuickContact) {
     val photo by produceState<ImageBitmap?>(initialValue = null, contact.contactId) {
         value = loadThumbnail(context, contact)
     }
-    val fallbackColor = avatarColor(contact.name)
+    val (container, onContainer) = avatarColors(contact.name)
 
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .size(52.dp)
             .clip(CircleShape)
-            .background(if (photo == null) fallbackColor else Color.Transparent),
+            .background(if (photo == null) container else Color.Transparent),
     ) {
         photo?.let { bitmap ->
             Image(
@@ -136,7 +152,7 @@ private fun ContactAvatar(contact: QuickContact) {
             text = contact.initials,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Medium,
-            color = Color.White,
+            color = onContainer,
         )
     }
 }
@@ -152,12 +168,17 @@ private suspend fun loadThumbnail(context: Context, contact: QuickContact): Imag
         }.getOrNull()
     }
 
-/** A stable color per contact, so the same person keeps the same circle. */
-private fun avatarColor(name: String): Color {
+/**
+ * A stable container role per contact, so the same person keeps the same circle and the circles
+ * stay in the wallpaper's palette rather than a set of colors picked here.
+ */
+@Composable
+private fun avatarColors(name: String): Pair<Color, Color> {
+    val scheme = MaterialTheme.colorScheme
     val palette = listOf(
-        Color(0xFF7E57C2), Color(0xFF42A5F5), Color(0xFF26A69A),
-        Color(0xFF66BB6A), Color(0xFFEF6C00), Color(0xFFEC407A),
-        Color(0xFF8D6E63), Color(0xFF5C6BC0),
+        scheme.primaryContainer to scheme.onPrimaryContainer,
+        scheme.secondaryContainer to scheme.onSecondaryContainer,
+        scheme.tertiaryContainer to scheme.onTertiaryContainer,
     )
     val index = (name.hashCode().toLong() and 0xFFFFFFFFL) % palette.size
     return palette[index.toInt()]

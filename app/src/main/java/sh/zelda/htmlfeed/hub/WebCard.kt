@@ -7,8 +7,11 @@ import android.webkit.WebViewClient
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -54,15 +57,18 @@ fun WebCard(
     url: String,
     onWebView: (WebView?) -> Unit,
     modifier: Modifier = Modifier,
+    shape: Shape = SegmentShapes.single,
     height: Dp = 320.dp,
 ) {
-    HubCard(title = "Page", modifier = modifier) {
+    HubCard(title = "Page", modifier = modifier, shape = shape) {
         WebModule(
             url = url,
             onWebView = onWebView,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(height),
+                .height(height)
+                // Match the card's own corner rather than cutting a square hole in it.
+                .clip(MaterialTheme.shapes.large),
         )
     }
 }

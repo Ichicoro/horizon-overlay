@@ -127,7 +127,7 @@ class HubOverlay(context: Context) :
             modifier = Modifier
                 .fillMaxSize()
                 .background(
-                    MaterialTheme.colorScheme.background.copy(alpha = MAX_SCRIM_ALPHA * progress)
+                    MaterialTheme.colorScheme.surface.copy(alpha = MAX_SCRIM_ALPHA * progress)
                 )
         ) {
             CompositionLocalProvider(LocalHubActions provides hubActions) {

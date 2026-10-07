@@ -12,6 +12,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -26,6 +27,7 @@ fun WeatherCard(
     metricUnits: Boolean,
     refreshKey: Int,
     modifier: Modifier = Modifier,
+    shape: Shape = SegmentShapes.single,
 ) {
     val context = LocalContext.current
     val actions = LocalHubActions.current
@@ -33,7 +35,7 @@ fun WeatherCard(
         value = place?.let { WeatherRepository.load(it, metricUnits) }
     }
 
-    HubCard(title = place?.name ?: "Weather", modifier = modifier) {
+    HubCard(title = place?.name ?: "Weather", modifier = modifier, shape = shape) {
         val result = report
         when {
             place == null -> HubPlaceholder(
@@ -55,7 +57,7 @@ fun WeatherCard(
 
 @Composable
 private fun WeatherBody(report: WeatherReport) {
-    Column(modifier = Modifier.padding(top = 4.dp)) {
+    Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = report.glyph,

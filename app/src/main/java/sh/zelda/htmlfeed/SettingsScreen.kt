@@ -97,10 +97,14 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
                 modifier = Modifier.padding(top = 24.dp, bottom = 8.dp),
             )
 
+            // Pinned modules hold the top, so the movable range starts below them.
+            // coerced: with nothing movable the range below would start at -1.
+            val firstMovable = layout.indexOfFirst { !it.module.pinned }.coerceAtLeast(0)
+
             layout.forEachIndexed { index, state ->
                 ModuleRow(
                     state = state,
-                    isFirst = index == 0,
+                    isFirst = index <= firstMovable,
                     isLast = index == layout.lastIndex,
                     isExpanded = expanded == state.module,
                     onToggleExpanded = {
@@ -111,7 +115,7 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
                     },
                     onMove = { offset ->
                         val target = index + offset
-                        if (target in layout.indices) {
+                        if (target in firstMovable..layout.lastIndex) {
                             update(layout.toMutableList().also {
                                 it[index] = it[target]
                                 it[target] = state
@@ -226,7 +230,11 @@ private fun ModuleRow(
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
-                    text = state.module.summary,
+                    text = if (state.module.pinned) {
+                        "Always at the top · ${state.module.summary}"
+                    } else {
+                        state.module.summary
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

@@ -19,6 +19,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -31,7 +32,12 @@ import java.util.concurrent.TimeUnit
 
 /** The next handful of calendar events, each one a tap away from the calendar app. */
 @Composable
-fun AgendaCard(days: Int, refreshKey: Int, modifier: Modifier = Modifier) {
+fun AgendaCard(
+    days: Int,
+    refreshKey: Int,
+    modifier: Modifier = Modifier,
+    shape: Shape = SegmentShapes.single,
+) {
     val context = LocalContext.current
     val actions = LocalHubActions.current
     val granted = CalendarRepository.hasPermission(context)
@@ -42,6 +48,7 @@ fun AgendaCard(days: Int, refreshKey: Int, modifier: Modifier = Modifier) {
     HubCard(
         title = "Up next",
         modifier = modifier,
+        shape = shape,
         actionLabel = if (granted) "Calendar" else null,
         onAction = { actions.launch(CalendarRepository.openCalendarIntent()) },
     ) {
@@ -56,10 +63,7 @@ fun AgendaCard(days: Int, refreshKey: Int, modifier: Modifier = Modifier) {
                 message = "Nothing scheduled in the next ${if (days == 1) "day" else "$days days"}.",
             )
 
-            else -> Column(
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.padding(top = 8.dp),
-            ) {
+            else -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 events.forEach { event ->
                     AgendaRow(event) { actions.launch(event.viewIntent) }
                 }

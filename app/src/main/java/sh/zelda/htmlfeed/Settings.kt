@@ -66,13 +66,22 @@ object Settings {
         val missing = HubModule.entries
             .filterNot { module -> parsed.any { it.module == module } }
             .map { HubModuleState(it, enabled = false) }
-        return (parsed + missing).ifEmpty { DEFAULT_LAYOUT }
+        return pinnedFirst((parsed + missing).ifEmpty { DEFAULT_LAYOUT })
     }
 
     fun setLayout(context: Context, layout: List<HubModuleState>) {
-        val encoded = layout.joinToString(",") { "${it.module.id}:${if (it.enabled) 1 else 0}" }
+        val encoded = pinnedFirst(layout)
+            .joinToString(",") { "${it.module.id}:${if (it.enabled) 1 else 0}" }
         prefs(context).edit { putString(KEY_LAYOUT, encoded) }
     }
+
+    /**
+     * Pinned modules are held at the top whatever the stored order says, so a layout written by
+     * an older build - or a hand-edited one - can't strand the clock in the middle.
+     * [sortedBy] is stable, so everything else keeps the order it was given.
+     */
+    private fun pinnedFirst(layout: List<HubModuleState>): List<HubModuleState> =
+        layout.sortedBy { !it.module.pinned }
 
     fun setPageUrl(context: Context, url: String) {
         prefs(context).edit { putString(KEY_URL, url) }
