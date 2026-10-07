@@ -1,28 +1,27 @@
 package sh.zelda.htmlfeed
 
-import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Bundle
+import android.util.Log
 import android.view.ViewGroup
 import android.webkit.WebView
-import android.webkit.WebViewClient
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.ViewCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
@@ -34,15 +33,18 @@ import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.google.android.libraries.gsa.d.a.OverlayController
 import com.google.android.libraries.gsa.d.a.PanelState
+import sh.zelda.htmlfeed.hub.HubActions
+import sh.zelda.htmlfeed.hub.HubScreen
+import sh.zelda.htmlfeed.hub.LocalHubActions
 
 /**
- * The -1 screen: a WebView in a Compose host.
+ * The -1 screen: a stack of hub modules in a Compose host.
  *
  * The overlay window belongs to a Service, not an Activity, so it plays the part an Activity
  * normally would for [ComposeView]: it owns the lifecycle and the saved-state registry, and
  * feeds them the callbacks the launcher sends.
  */
-class HtmlOverlay(context: Context) :
+class HubOverlay(context: Context) :
     OverlayController(context, R.style.AppTheme, R.style.WindowTheme),
     LifecycleOwner,
     SavedStateRegistryOwner {
@@ -54,16 +56,40 @@ class HtmlOverlay(context: Context) :
     override val savedStateRegistry: SavedStateRegistry
         get() = savedStateRegistryController.savedStateRegistry
 
-    /** How far the panel has been pulled in, 0f..1f; drives the scrim and the page fade. */
+    /** How far the panel has been pulled in, 0f..1f; drives the scrim and the content fade. */
     private var progress by mutableFloatStateOf(0f)
-    private var url by mutableStateOf("")
+    private var settings by mutableStateOf(Settings.snapshot(context))
+
+    /** Bumped on every resume, so the data-backed modules refetch when the panel reopens. */
+    private var refreshKey by mutableIntStateOf(0)
 
     private var webView: WebView? = null
-    private var loadedUrl: String? = null
+
+    /**
+     * Opening an app from the panel.
+     *
+     * Order matters, and not for cosmetic reasons. The only background-activity-start exemption
+     * this app qualifies for is "the calling uid has a visible non-app window" - the open panel
+     * itself. Closing the panel first sets `isVisible = false`, which takes the window alpha to
+     * zero and puts FLAG_NOT_TOUCHABLE back on, so the exemption is gone by the time the start
+     * reaches the system and it's dropped with BAL_BLOCK: the panel shuts, nothing opens.
+     *
+     * So: start first, close second. The close is skipped if the start threw, which leaves the
+     * panel up rather than dumping you on the home screen with nothing to show for the tap.
+     */
+    private val hubActions = HubActions { intent ->
+        try {
+            startActivity(intent)
+            closePanelIfNeeded(1)
+        } catch (e: Exception) {
+            // Nothing on the device handles it. The panel stays open.
+            Log.w(TAG, "Could not start $intent", e)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        url = Settings.pageUrl(this)
+        settings = Settings.snapshot(this)
 
         savedStateRegistryController.performRestore(null) // must precede ON_CREATE
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
@@ -96,7 +122,6 @@ class HtmlOverlay(context: Context) :
     }
 
     @Composable
-    @SuppressLint("SetJavaScriptEnabled")
     private fun OverlayContent() {
         Box(
             modifier = Modifier
@@ -105,28 +130,18 @@ class HtmlOverlay(context: Context) :
                     MaterialTheme.colorScheme.background.copy(alpha = MAX_SCRIM_ALPHA * progress)
                 )
         ) {
-            AndroidView(
-                factory = { ctx ->
-                    WebView(ctx).apply {
-                        setBackgroundColor(android.graphics.Color.TRANSPARENT)
-                        settings.javaScriptEnabled = true
-                        settings.domStorageEnabled = true
-                        webViewClient = WebViewClient() // keep navigation inside the overlay
-                        webView = this
-                    }
-                },
-                update = { view ->
-                    if (url != loadedUrl) {
-                        loadedUrl = url
-                        view.loadUrl(url)
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxSize()
-                    // Keep content clear of the status bar.
-                    .windowInsetsPadding(WindowInsets.statusBars)
-                    .alpha(progress),
-            )
+            CompositionLocalProvider(LocalHubActions provides hubActions) {
+                HubScreen(
+                    settings = settings,
+                    refreshKey = refreshKey,
+                    onWebView = { webView = it },
+                    modifier = Modifier
+                        .fillMaxSize()
+                        // Keep content clear of the status bar.
+                        .windowInsetsPadding(WindowInsets.statusBars)
+                        .alpha(progress),
+                )
+            }
         }
     }
 
@@ -160,8 +175,9 @@ class HtmlOverlay(context: Context) :
         super.onResume()
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
         webView?.onResume()
-        // Pick up a new page chosen in settings while the overlay stayed alive.
-        url = Settings.pageUrl(this)
+        // Pick up anything changed in settings while the overlay stayed alive.
+        settings = Settings.snapshot(this)
+        refreshKey++
     }
 
     override fun onPause() {
@@ -183,8 +199,9 @@ class HtmlOverlay(context: Context) :
     }
 
     private companion object {
+        private const val TAG = "HubOverlay"
+
         /** Scrim opacity once the panel is fully open. */
-//        const val MAX_SCRIM_ALPHA = 0.78f
-        const val MAX_SCRIM_ALPHA = 1
+        const val MAX_SCRIM_ALPHA = 1f
     }
 }

@@ -19,7 +19,7 @@ class OverlayService : Service() {
                 clientVersion: Int
             ): OverlayController {
                 val ctx = configuration?.let { createConfigurationContext(it) } ?: this@OverlayService
-                return HtmlOverlay(ctx)
+                return HubOverlay(ctx)
             }
         }
     }
