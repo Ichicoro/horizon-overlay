@@ -10,8 +10,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -19,9 +21,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.view.ViewCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
@@ -75,8 +77,14 @@ class HtmlOverlay(context: Context) :
         slidingPanelLayout.setViewTreeLifecycleOwner(this)
         slidingPanelLayout.setViewTreeSavedStateRegistryOwner(this)
 
+        // The panel swallows insets whenever the overlay is hidden
+        // (OverlayControllerSlidingPanelLayout.fitSystemWindows returns true then), and the
+        // window's first dispatch lands while it is still hidden, so everything below it would
+        // only ever see zeros. A listener takes the place of that path and passes them down.
+        ViewCompat.setOnApplyWindowInsetsListener(slidingPanelLayout) { _, insets -> insets }
+
         val composeView = ComposeView(this).apply {
-            setContent { OverlayContent() }
+            setContent { HtmlFeedTheme { OverlayContent() } }
         }
         container.addView(
             composeView,
@@ -93,7 +101,9 @@ class HtmlOverlay(context: Context) :
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = MAX_SCRIM_ALPHA * progress))
+                .background(
+                    MaterialTheme.colorScheme.background.copy(alpha = MAX_SCRIM_ALPHA * progress)
+                )
         ) {
             AndroidView(
                 factory = { ctx ->
@@ -113,8 +123,8 @@ class HtmlOverlay(context: Context) :
                 },
                 modifier = Modifier
                     .fillMaxSize()
-                    // Keep content clear of the status and navigation bars.
-                    .windowInsetsPadding(WindowInsets.systemBars)
+                    // Keep content clear of the status bar.
+                    .windowInsetsPadding(WindowInsets.statusBars)
                     .alpha(progress),
             )
         }
@@ -174,6 +184,7 @@ class HtmlOverlay(context: Context) :
 
     private companion object {
         /** Scrim opacity once the panel is fully open. */
-        const val MAX_SCRIM_ALPHA = 0.78f
+//        const val MAX_SCRIM_ALPHA = 0.78f
+        const val MAX_SCRIM_ALPHA = 1
     }
 }
