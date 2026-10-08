@@ -8,10 +8,7 @@ import android.view.ViewGroup
 import android.webkit.WebView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
@@ -24,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.ComposeView
 import androidx.core.view.ViewCompat
+import androidx.core.view.children
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
@@ -116,7 +114,15 @@ class HubOverlay(context: Context) :
         // (OverlayControllerSlidingPanelLayout.fitSystemWindows returns true then), and the
         // window's first dispatch lands while it is still hidden, so everything below it would
         // only ever see zeros. A listener takes the place of that path and passes them down.
-        ViewCompat.setOnApplyWindowInsetsListener(slidingPanelLayout) { _, insets -> insets }
+        //
+        // Passing them down is the listener's job too: it stands in for the view's own
+        // onApplyWindowInsets, and for a ViewGroup that is the thing that walks the children.
+        // Returning the insets without this loop leaves the ComposeView never dispatched to,
+        // and every windowInsetsPadding below resolves to zero.
+        ViewCompat.setOnApplyWindowInsetsListener(slidingPanelLayout) { view, insets ->
+            (view as ViewGroup).children.forEach { ViewCompat.dispatchApplyWindowInsets(it, insets) }
+            insets
+        }
 
         val composeView = ComposeView(this).apply {
             setContent { HtmlFeedTheme { OverlayContent() } }
@@ -147,8 +153,6 @@ class HubOverlay(context: Context) :
                     onWebView = { webView = it },
                     modifier = Modifier
                         .fillMaxSize()
-                        // Keep content clear of the status bar.
-                        .windowInsetsPadding(WindowInsets.statusBars)
                         .alpha(progress),
                 )
             }

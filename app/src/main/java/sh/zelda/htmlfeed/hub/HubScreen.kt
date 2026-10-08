@@ -3,20 +3,25 @@ package sh.zelda.htmlfeed.hub
 import android.webkit.WebView
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -66,10 +71,21 @@ fun HubScreen(
         WebModule(
             url = settings.pageUrl,
             onWebView = onWebView,
-            modifier = modifier.fillMaxSize(),
+            // A page is one opaque view: it can't hold its own content clear of the bars the
+            // way the list below does, so it gets padded out of them instead.
+            modifier = modifier
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.systemBars),
         )
         return
     }
+
+    // The bars are the list's business, not the panel's. Padding the whole panel away from
+    // them would put the list's top edge under the status bar, and a scrolled card would then
+    // be cut off along that line in mid-air. The insets go on the list's contentPadding
+    // instead: cards start and end clear of the bars, and scroll underneath them.
+    val barInsets = WindowInsets.systemBars.asPaddingValues()
+    val pullState = rememberPullToRefreshState()
 
     PullToRefreshBox(
         isRefreshing = isRefreshing,
@@ -80,11 +96,18 @@ fun HubScreen(
             WeatherRepository.invalidate()
             onRefresh()
         },
-        // The overlay keeps content off the status bar; the navigation bar is this list's
-        // problem, since it only matters for whatever ends up at the bottom.
-        modifier = modifier
-            .fillMaxSize()
-            .windowInsetsPadding(WindowInsets.navigationBars),
+        state = pullState,
+        // The box is edge to edge, so the indicator would come down behind the status bar.
+        indicator = {
+            PullToRefreshDefaults.Indicator(
+                state = pullState,
+                isRefreshing = isRefreshing,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .windowInsetsPadding(WindowInsets.statusBars),
+            )
+        },
+        modifier = modifier.fillMaxSize(),
     ) {
         HubList(
             modules = modules,
@@ -92,6 +115,7 @@ fun HubScreen(
             refreshKey = refreshKey,
             weather = weather,
             onWebView = onWebView,
+            barInsets = barInsets,
         )
     }
 }
@@ -103,10 +127,16 @@ private fun HubList(
     refreshKey: Int,
     weather: Result<WeatherReport>?,
     onWebView: (WebView?) -> Unit,
+    barInsets: PaddingValues,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 20.dp),
+        contentPadding = PaddingValues(
+            start = 16.dp,
+            end = 16.dp,
+            top = 20.dp + barInsets.calculateTopPadding(),
+            bottom = 20.dp + barInsets.calculateBottomPadding(),
+        ),
     ) {
         if (modules.isEmpty()) {
             item { EmptyHub() }
