@@ -18,6 +18,14 @@ data class QuickContact(
     val lookupKey: String,
     val name: String,
     val phoneNumber: String?,
+    /**
+     * When the provider last saw this contact change, which is what the photo is keyed on.
+     *
+     * A contact id alone can't say that the person's picture is new, and the card holds its
+     * decoded thumbnail for as long as the panel lives - this is the part that moves when
+     * someone edits a contact.
+     */
+    val lastUpdated: Long,
 ) {
     /** The contact row itself; the photo stream and the lookup URI both start here. */
     val contentUri: Uri
@@ -62,6 +70,7 @@ object ContactsRepository {
                 ContactsContract.Contacts.LOOKUP_KEY,
                 ContactsContract.Contacts.DISPLAY_NAME_PRIMARY,
                 ContactsContract.Contacts.HAS_PHONE_NUMBER,
+                ContactsContract.Contacts.CONTACT_LAST_UPDATED_TIMESTAMP,
             )
             val contacts = mutableListOf<QuickContact>()
             context.contentResolver.query(
@@ -79,6 +88,7 @@ object ContactsRepository {
                         lookupKey = cursor.getString(1).orEmpty(),
                         name = name,
                         phoneNumber = if (cursor.getInt(3) > 0) primaryNumber(context, id) else null,
+                        lastUpdated = cursor.getLong(4),
                     )
                 }
             }

@@ -7,6 +7,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import sh.zelda.htmlfeed.hub.LocationRepository
+import sh.zelda.htmlfeed.widget.HubWidgets
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -27,5 +28,8 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         lifecycleScope.launch { LocationRepository.current(this@MainActivity) }
+        // Whatever sent someone here - a permission to grant, a favorite just starred, an option
+        // to change - the widgets are a step behind by the time they're looking at this screen.
+        HubWidgets.refresh(this)
     }
 }

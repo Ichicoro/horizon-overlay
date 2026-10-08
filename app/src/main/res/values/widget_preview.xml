@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Only the widget picker's previews use these. The widgets themselves take their colors from
+     the wallpaper at runtime, which a static layout has no way to ask for. -->
+<resources>
+    <color name="widget_preview_surface">#fff7f2fa</color>
+    <color name="widget_preview_on_surface">#ff1c1b1f</color>
+    <color name="widget_preview_on_surface_variant">#ff49454f</color>
+    <color name="widget_preview_accent">#ff6750a4</color>
+</resources>

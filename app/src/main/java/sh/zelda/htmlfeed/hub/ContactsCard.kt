@@ -129,7 +129,10 @@ private fun ContactChip(
 @Composable
 private fun ContactAvatar(contact: QuickContact) {
     val context = LocalContext.current
-    val photo by produceState<ImageBitmap?>(initialValue = null, contact.contactId) {
+    // Keyed on the edit timestamp as well as the id: the row this sits in is keyed by contact
+    // id, so without that second key the chip - and the bitmap it's holding - would outlive
+    // every refresh and the picture would be decoded once and never again.
+    val photo by produceState<ImageBitmap?>(null, contact.contactId, contact.lastUpdated) {
         value = loadThumbnail(context, contact)
     }
     val (container, onContainer) = avatarColors(contact.name)

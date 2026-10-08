@@ -32,6 +32,7 @@ kotlin {
 dependencies {
     implementation(project(":google-gsa"))
     implementation(libs.core.ktx)
+    implementation(libs.glance.appwidget) // the home-screen widgets
     implementation(libs.material) // Theme.Material3.* resources used by the overlay window
     implementation(libs.savedstate) // the overlay window owns its own SavedStateRegistry
 

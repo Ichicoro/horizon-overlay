@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Widget names and the one-liners the picker shows under them. -->
+    <string name="widget_contacts_label">Contacts</string>
+    <string name="widget_contacts_description">Your starred contacts, as a grid of faces.</string>
+    <string name="widget_navigation_label">Quick navigation</string>
+    <string name="widget_navigation_description">Addresses saved on your contacts, one tap from directions.</string>
+    <string name="widget_agenda_label">Up next</string>
+    <string name="widget_agenda_description">The next few events on your calendar.</string>
+</resources>

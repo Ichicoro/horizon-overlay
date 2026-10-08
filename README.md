@@ -51,6 +51,29 @@ too — put it in `app/src/main/assets/` and use `file:///android_asset/index.ht
 With every other module switched off, the page gets the whole panel with no card around it,
 which is exactly what the app used to do.
 
+## Widgets
+
+Three of the modules are also home-screen widgets, in the launcher's widget picker under HTML
+Feed: **Contacts**, **Quick navigation** and **Up next**. They read the same settings and the
+same providers as the cards in the panel, so the agenda's day range and the contacts limit apply
+to both, and tapping something does the same thing it does in the panel.
+
+They're Glance widgets, which means the colours are Material You - the wallpaper's palette on
+Android 12 and up, Glance's baseline palette below it, where there are no system colours to read
+and the rounded corners go square too. Both directions resize, down to one row or one face;
+every list scrolls, so a small widget still reaches everything.
+
+There's no widget for the clock, the weather, or the web page. A clock widget is a solved problem
+every launcher already ships. The weather forecasts for wherever the phone is, which takes a
+background location read the panel only gets because the launcher is holding it open - a widget
+has no such cover, and a stale reading is worse than no widget. And a widget is a `RemoteViews`,
+which can only be built out of a fixed set of views that doesn't include `WebView`.
+
+Updates: a change in settings refreshes them, as does opening the settings screen, which is where
+a new favorite or a just-granted permission gets picked up. The agenda also refreshes when the
+calendar changes or the clock is set, and polls every half hour - the shortest period the system
+honours - which is what turns "Tomorrow" into "Today" after midnight.
+
 Both permissions are asked for from the settings screen, not from the overlay: the overlay has
 no Activity to show a dialog from. Until they're granted the modules show a placeholder with a
 shortcut back to settings.

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Resizable in both directions: the list scrolls, so every size is a usable size, and the
+     minResize floor is just where a row stops fitting at all. targetCell*, maxResize* and
+     description are Android 12 attributes and older launchers ignore them.
+
+     Half an hour is the shortest period the system actually honours, and it's what corrects the
+     "Today"/"Tomorrow" labels after midnight; everything else that changes the list arrives as a
+     broadcast - see AgendaWidgetReceiver. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/widget_agenda_description"
+    android:initialLayout="@layout/glance_default_loading_layout"
+    android:minHeight="110dp"
+    android:minResizeHeight="80dp"
+    android:minResizeWidth="140dp"
+    android:minWidth="180dp"
+    android:maxResizeHeight="520dp"
+    android:maxResizeWidth="400dp"
+    android:previewLayout="@layout/widget_agenda_preview"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellHeight="2"
+    android:targetCellWidth="3"
+    android:updatePeriodMillis="1800000"
+    android:widgetCategory="home_screen" />

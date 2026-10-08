@@ -6,10 +6,15 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.provider.CalendarContract
+import android.text.format.DateFormat
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 import java.util.concurrent.TimeUnit
 
 /** One upcoming event. Times are epoch millis, UTC for all-day events. */
@@ -106,3 +111,44 @@ object CalendarRepository {
             .build(),
     )
 }
+
+/**
+ * The line under an event's title: when it is, and where, as much of it as there is.
+ *
+ * Lives here rather than in the card because the home-screen widget shows the same line, and an
+ * event that reads "Tomorrow · 09:30" in the panel has to read that on the widget too.
+ */
+fun AgendaEvent.detailLine(context: Context, locale: Locale): String =
+    listOfNotNull(dayLabel(locale), timeLabel(context, locale), location).joinToString(" · ")
+
+/** "Today", "Tomorrow", or a weekday - whichever is shortest to read. */
+fun AgendaEvent.dayLabel(locale: Locale): String {
+    // All-day instances are stamped at UTC midnight, so they have to be read in UTC to land on
+    // the calendar day the user actually sees.
+    val zone = timeZone
+    val daysApart = epochDay(begin, zone) - epochDay(System.currentTimeMillis(), zone)
+    fun format(pattern: String) = SimpleDateFormat(pattern, locale)
+        .apply { timeZone = zone }
+        .format(Date(begin))
+
+    return when (daysApart) {
+        0L -> "Today"
+        1L -> "Tomorrow"
+        in 2L..6L -> format("EEEE")
+        else -> format("EEE d MMM")
+    }
+}
+
+/** The clock time, in whichever of the two formats the phone is set to - or "all day". */
+fun AgendaEvent.timeLabel(context: Context, locale: Locale): String {
+    if (allDay) return "all day"
+    val pattern = if (DateFormat.is24HourFormat(context)) "HH:mm" else "h:mm a"
+    return SimpleDateFormat(pattern, locale).format(Date(begin))
+}
+
+private val AgendaEvent.timeZone: TimeZone
+    get() = if (allDay) TimeZone.getTimeZone("UTC") else TimeZone.getDefault()
+
+/** Days since the epoch in [zone]; floor division keeps it right for dates before 1970. */
+private fun epochDay(millis: Long, zone: TimeZone): Long =
+    Math.floorDiv(millis + zone.getOffset(millis), TimeUnit.DAYS.toMillis(1))

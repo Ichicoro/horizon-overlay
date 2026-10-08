@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- No update period: starred contacts change rarely, and when they do the refresh comes from
+     settings being opened rather than from a poll that would wake the device for nothing. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/widget_contacts_description"
+    android:initialLayout="@layout/glance_default_loading_layout"
+    android:minHeight="110dp"
+    android:minResizeHeight="100dp"
+    android:minResizeWidth="110dp"
+    android:minWidth="180dp"
+    android:maxResizeHeight="520dp"
+    android:maxResizeWidth="400dp"
+    android:previewLayout="@layout/widget_contacts_preview"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellHeight="2"
+    android:targetCellWidth="3"
+    android:updatePeriodMillis="0"
+    android:widgetCategory="home_screen" />

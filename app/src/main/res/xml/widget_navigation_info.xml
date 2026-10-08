@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Wider floor than the other two: a row carries a name, a label and an address, and below
+     about 200dp there's nothing left of the address to read. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/widget_navigation_description"
+    android:initialLayout="@layout/glance_default_loading_layout"
+    android:minHeight="110dp"
+    android:minResizeHeight="80dp"
+    android:minResizeWidth="180dp"
+    android:minWidth="220dp"
+    android:maxResizeHeight="520dp"
+    android:maxResizeWidth="400dp"
+    android:previewLayout="@layout/widget_navigation_preview"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellHeight="2"
+    android:targetCellWidth="4"
+    android:updatePeriodMillis="0"
+    android:widgetCategory="home_screen" />

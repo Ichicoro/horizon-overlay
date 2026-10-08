@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import androidx.core.content.edit
 import sh.zelda.htmlfeed.hub.NavDestination
 import sh.zelda.htmlfeed.hub.WeatherPlace
+import sh.zelda.htmlfeed.widget.HubWidgets
 
 /**
  * Everything the hub remembers between runs: which modules are on, what order they sit in, and
@@ -71,7 +72,7 @@ object Settings {
     fun setLayout(context: Context, layout: List<HubModuleState>) {
         val encoded = pinnedFirst(layout)
             .joinToString(",") { "${it.module.id}:${if (it.enabled) 1 else 0}" }
-        prefs(context).edit { putString(KEY_LAYOUT, encoded) }
+        write(context) { putString(KEY_LAYOUT, encoded) }
     }
 
     /**
@@ -83,7 +84,7 @@ object Settings {
         layout.sortedBy { !it.module.pinned }
 
     fun setPageUrl(context: Context, url: String) {
-        prefs(context).edit { putString(KEY_URL, url) }
+        write(context) { putString(KEY_URL, url) }
     }
 
     /**
@@ -104,6 +105,8 @@ object Settings {
     }
 
     fun setLastKnownPlace(context: Context, place: WeatherPlace) {
+        // The one write that goes around [write]: no widget shows the weather, and this happens
+        // on every forecast - which is every time the panel is swiped open.
         prefs(context).edit {
             putString(KEY_LAST_PLACE, place.name)
             putFloat(KEY_LAST_LAT, place.latitude.toFloat())
@@ -112,24 +115,24 @@ object Settings {
     }
 
     fun setMetricUnits(context: Context, metric: Boolean) {
-        prefs(context).edit { putBoolean(KEY_WEATHER_METRIC, metric) }
+        write(context) { putBoolean(KEY_WEATHER_METRIC, metric) }
     }
 
     fun setAgendaDays(context: Context, days: Int) {
-        prefs(context).edit { putInt(KEY_AGENDA_DAYS, days.coerceIn(1, 31)) }
+        write(context) { putInt(KEY_AGENDA_DAYS, days.coerceIn(1, 31)) }
     }
 
     fun setContactsLimit(context: Context, limit: Int) {
-        prefs(context).edit { putInt(KEY_CONTACTS_LIMIT, limit.coerceIn(2, 24)) }
+        write(context) { putInt(KEY_CONTACTS_LIMIT, limit.coerceIn(2, 24)) }
     }
 
     fun setClockShowDate(context: Context, show: Boolean) {
-        prefs(context).edit { putBoolean(KEY_CLOCK_SHOW_DATE, show) }
+        write(context) { putBoolean(KEY_CLOCK_SHOW_DATE, show) }
     }
 
     /** Null means every address; a set means only those. See [NavDestination.key]. */
     fun setNavigationSelection(context: Context, selection: Set<String>?) {
-        prefs(context).edit {
+        write(context) {
             if (selection == null) remove(KEY_NAV_SELECTION) else putStringSet(KEY_NAV_SELECTION, selection)
         }
     }
@@ -167,6 +170,16 @@ object Settings {
 
     private fun prefs(context: Context) =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+    /**
+     * Every write goes through here, which is also the one place that tells the home-screen
+     * widgets to go and look again: a widget isn't running when a setting changes, so unlike the
+     * panel it can't watch for the write itself.
+     */
+    private fun write(context: Context, changes: SharedPreferences.Editor.() -> Unit) {
+        prefs(context).edit(action = changes)
+        HubWidgets.refresh(context)
+    }
 }
 
 /** A whole configuration, read once. */

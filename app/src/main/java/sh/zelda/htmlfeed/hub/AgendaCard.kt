@@ -1,6 +1,5 @@
 package sh.zelda.htmlfeed.hub
 
-import android.text.format.DateFormat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -16,7 +15,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Shape
@@ -25,10 +23,6 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.TimeZone
-import java.util.concurrent.TimeUnit
 
 /** The next handful of calendar events, each one a tap away from the calendar app. */
 @Composable
@@ -74,11 +68,8 @@ fun AgendaCard(
 
 @Composable
 private fun AgendaRow(event: AgendaEvent, onClick: () -> Unit) {
+    val context = LocalContext.current
     val locale = LocalConfiguration.current.locales[0]
-    val use24h = DateFormat.is24HourFormat(LocalContext.current)
-    val timeFormat = remember(locale, use24h) {
-        SimpleDateFormat(if (use24h) "HH:mm" else "h:mm a", locale)
-    }
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -106,13 +97,8 @@ private fun AgendaRow(event: AgendaEvent, onClick: () -> Unit) {
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            val detail = listOfNotNull(
-                dayLabel(event, locale),
-                if (event.allDay) "all day" else timeFormat.format(Date(event.begin)),
-                event.location,
-            ).joinToString(" · ")
             Text(
-                text = detail,
+                text = event.detailLine(context, locale),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
@@ -121,25 +107,3 @@ private fun AgendaRow(event: AgendaEvent, onClick: () -> Unit) {
         }
     }
 }
-
-/** "Today", "Tomorrow", or a weekday - whichever is shortest to read. */
-private fun dayLabel(event: AgendaEvent, locale: java.util.Locale): String {
-    // All-day instances are stamped at UTC midnight, so they have to be read in UTC to land on
-    // the calendar day the user actually sees.
-    val zone = if (event.allDay) TimeZone.getTimeZone("UTC") else TimeZone.getDefault()
-    val daysApart = epochDay(event.begin, zone) - epochDay(System.currentTimeMillis(), zone)
-    fun format(pattern: String) = SimpleDateFormat(pattern, locale)
-        .apply { timeZone = zone }
-        .format(Date(event.begin))
-
-    return when (daysApart) {
-        0L -> "Today"
-        1L -> "Tomorrow"
-        in 2L..6L -> format("EEEE")
-        else -> format("EEE d MMM")
-    }
-}
-
-/** Days since the epoch in [zone]; floor division keeps it right for dates before 1970. */
-private fun epochDay(millis: Long, zone: TimeZone): Long =
-    Math.floorDiv(millis + zone.getOffset(millis), TimeUnit.DAYS.toMillis(1))
