@@ -9,7 +9,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -38,7 +37,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,10 +46,14 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
-import kotlinx.coroutines.launch
+import androidx.compose.material3.Checkbox
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.text.style.TextOverflow
+import sh.zelda.htmlfeed.hub.NavDestination
+import sh.zelda.htmlfeed.hub.NavigationRepository
 import sh.zelda.htmlfeed.hub.CalendarRepository
 import sh.zelda.htmlfeed.hub.ContactsRepository
-import sh.zelda.htmlfeed.hub.WeatherRepository
+import sh.zelda.htmlfeed.hub.LocationRepository
 
 /**
  * Where the panel gets arranged: every module in the order it will appear, with its switch, its
@@ -249,6 +251,7 @@ private fun ModuleRow(
                     HubModule.CLOCK -> ClockOptions()
                     HubModule.CONTACTS -> ContactsOptions()
                     HubModule.WEATHER -> WeatherOptions()
+                    HubModule.NAVIGATION -> NavigationOptions()
                     HubModule.AGENDA -> AgendaOptions()
                     HubModule.WEB -> WebOptions()
                 }
@@ -316,6 +319,89 @@ private fun ContactsOptions() {
     )
 }
 
+/**
+ * Which addresses the card shows.
+ *
+ * Everything is ticked until the first time something is unticked: before that the stored
+ * selection is null, which means "all of them" and keeps a newly saved address appearing without
+ * a trip through here.
+ */
+@Composable
+private fun NavigationOptions() {
+    val context = LocalContext.current
+    var selection by remember { mutableStateOf(Settings.snapshot(context).navigationSelection) }
+    var permissionTick by remember { mutableIntStateOf(0) }
+    val granted = remember(permissionTick) { NavigationRepository.hasPermission(context) }
+    val destinations by produceState(emptyList<NavDestination>(), granted) {
+        value = if (granted) NavigationRepository.destinations(context) else emptyList()
+    }
+
+    PermissionNotice(
+        rationale = "Needed to read the addresses saved on your contacts.",
+        permission = NavigationRepository.PERMISSION,
+        onResult = { permissionTick++ },
+    )
+
+    if (!granted) return
+    if (destinations.isEmpty()) {
+        Text(
+            text = "None of your contacts has an address saved.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        return
+    }
+
+    fun set(newSelection: Set<String>?) {
+        selection = newSelection
+        Settings.setNavigationSelection(context, newSelection)
+    }
+
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = if (selection == null) "Showing all" else "Showing ${selection?.size ?: 0}",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+        if (selection != null) {
+            TextButton(onClick = { set(null) }) { Text("Select all") }
+        }
+    }
+
+    destinations.forEach { destination ->
+        val checked = selection?.contains(destination.key) ?: true
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    // The first untick turns "all" into a real set, so it has to start from
+                    // everything rather than from nothing.
+                    val current = selection ?: destinations.map { it.key }.toSet()
+                    set(if (checked) current - destination.key else current + destination.key)
+                },
+        ) {
+            Checkbox(checked = checked, onCheckedChange = null)
+            Column(modifier = Modifier.padding(start = 8.dp, top = 8.dp, bottom = 8.dp)) {
+                Text(
+                    text = "${destination.name} · ${destination.label}",
+                    style = MaterialTheme.typography.bodyLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = destination.shortAddress,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun AgendaOptions() {
     val context = LocalContext.current
@@ -339,73 +425,17 @@ private fun AgendaOptions() {
 @Composable
 private fun WeatherOptions() {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val keyboard = LocalSoftwareKeyboardController.current
-    var place by remember { mutableStateOf(Settings.snapshot(context).weather) }
     var metric by remember { mutableStateOf(Settings.snapshot(context).metricUnits) }
-    var query by remember { mutableStateOf("") }
-    var results by remember { mutableStateOf<List<WeatherPlace>>(emptyList()) }
-    var status by remember { mutableStateOf<String?>(null) }
 
-    fun search() {
-        keyboard?.hide()
-        status = "Searching…"
-        scope.launch {
-            WeatherRepository.search(query)
-                .onSuccess {
-                    results = it
-                    status = if (it.isEmpty()) "No place by that name." else null
-                }
-                .onFailure {
-                    results = emptyList()
-                    status = "Couldn't reach the search service."
-                }
-        }
-    }
-
-    Text(
-        text = place?.let { "Showing ${it.name}" } ?: "No location set",
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    PermissionNotice(
+        rationale = "Needed to show the weather where you are. There's no saved city: the " +
+            "panel always reports your current location.",
+        permission = LocationRepository.PERMISSION,
     )
-    OutlinedTextField(
-        value = query,
-        onValueChange = { query = it },
-        label = { Text("Search for a town or city") },
-        singleLine = true,
-        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-        keyboardActions = KeyboardActions(onSearch = { search() }),
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 12.dp),
-    )
-    status?.let {
-        Text(
-            text = it,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 4.dp),
-        )
-    }
-    results.forEach { candidate ->
-        TextButton(
-            onClick = {
-                Settings.setWeatherPlace(context, candidate)
-                place = candidate
-                results = emptyList()
-                query = ""
-                status = null
-            },
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(text = candidate.name, modifier = Modifier.weight(1f))
-        }
-    }
-
+    BackgroundLocationNotice()
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.padding(top = 12.dp),
     ) {
         FilterChip(
             selected = metric,
@@ -423,13 +453,6 @@ private fun WeatherOptions() {
             },
             label = { Text("°F") },
         )
-        Spacer(modifier = Modifier.weight(1f))
-        if (place != null) {
-            TextButton(onClick = {
-                Settings.setWeatherPlace(context, null)
-                place = null
-            }) { Text("Clear") }
-        }
     }
     Text(
         text = "Forecasts come from Open-Meteo, which needs no account and no key.",
@@ -487,14 +510,63 @@ private fun WebOptions() {
 }
 
 /** Asks for a runtime permission, and says nothing at all once it's been granted. */
+/**
+ * The second half of the location grant, and the one that decides whether the weather card
+ * works away from home.
+ *
+ * "While using the app" is no use to the panel: it's drawn by a service the launcher binds, so
+ * the system never counts this app as on screen there and refuses every read. Granted only from
+ * the system settings page - since Android 11 a runtime request for it is denied without even
+ * showing a dialog - so this sends the user there rather than pretending to ask.
+ */
 @Composable
-private fun PermissionNotice(rationale: String, permission: String) {
+private fun BackgroundLocationNotice() {
+    val context = LocalContext.current
+    var granted by remember { mutableStateOf(LocationRepository.hasBackgroundPermission(context)) }
+    val launcher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { granted = LocationRepository.hasBackgroundPermission(context) }
+
+    // Nothing to say until the coarse grant is in: its own notice is asking for that already.
+    if (granted || !LocationRepository.hasPermission(context)) return
+    Column(modifier = Modifier.padding(bottom = 12.dp)) {
+        Text(
+            text = "Location is set to \"while using the app\", and the -1 panel doesn't count " +
+                "as using it - the launcher draws it, so Android treats this app as closed and " +
+                "refuses to say where you are. Until it's set to \"all the time\", the card " +
+                "shows the last place picked up while this screen was open.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        OutlinedButton(
+            onClick = {
+                launcher.launch(
+                    Intent(
+                        android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        "package:${context.packageName}".toUri(),
+                    ),
+                )
+            },
+            modifier = Modifier.padding(top = 8.dp),
+        ) { Text("Open app settings") }
+    }
+}
+
+@Composable
+private fun PermissionNotice(
+    rationale: String,
+    permission: String,
+    onResult: () -> Unit = {},
+) {
     val context = LocalContext.current
     // The result callback is what tells us to look again; the check itself is cheap.
     var attempts by remember { mutableIntStateOf(0) }
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
-    ) { attempts++ }
+    ) {
+        attempts++
+        onResult()
+    }
     val granted = remember(attempts) { hasPermission(context, permission) }
 
     if (granted) return
@@ -512,8 +584,10 @@ private fun PermissionNotice(rationale: String, permission: String) {
 }
 
 private fun hasPermission(context: Context, permission: String) = when (permission) {
+    // Navigation reads contacts too, so its permission is the same constant.
     ContactsRepository.PERMISSION -> ContactsRepository.hasPermission(context)
     CalendarRepository.PERMISSION -> CalendarRepository.hasPermission(context)
+    LocationRepository.PERMISSION -> LocationRepository.hasPermission(context)
     else -> true
 }
 

@@ -27,6 +27,14 @@ move it, and tapping the row opens its options.
 **Contacts** — the contacts you've starred, as a row of faces. Tap someone to open their
 contact, hold to go straight to the dialer. Needs `READ_CONTACTS`.
 
+**Quick navigation** — every address saved on a contact, one tap from directions. A contact with
+both a home and a work address gets a row each, since telling them apart is the point. Settings
+has a checklist to narrow it down; until something is unticked the stored selection is null,
+meaning "all of them", so a newly saved address shows up without a trip through settings.
+`google.navigation:` starts directions where a maps app handles it and `geo:` is the fallback -
+both are declared in `<queries>`, without which the check comes back null on Android 11+ and
+everything would take the fallback. Needs `READ_CONTACTS`.
+
 **Weather** — conditions now, the day's range, and the next six hours. Search for a town in
 settings and pick it; there's no location permission involved. Forecasts come from
 [Open-Meteo](https://open-meteo.com), which needs no account and no API key, and are cached for
@@ -48,7 +56,13 @@ no Activity to show a dialog from. Until they're granted the modules show a plac
 shortcut back to settings.
 
 The overlay re-reads settings and refetches on resume, so a change takes effect the next time
-you swipe.
+you swipe. Pulling the stack down refetches on demand, and drops the weather cache first so the
+pull isn't just handing back the same reading.
+
+The refresh indicator is driven by the weather fetch, which is the only module that waits on the
+network - `HubScreen` owns that load for exactly this reason, rather than letting `WeatherCard`
+fetch for itself like the local-query modules do. The page module keeps the gesture for itself:
+it scrolls on its own.
 
 ## Opening apps from the panel
 

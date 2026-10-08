@@ -1,6 +1,7 @@
 package sh.zelda.htmlfeed
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.os.Bundle
 import android.util.Log
 import android.view.ViewGroup
@@ -65,6 +66,9 @@ class HubOverlay(context: Context) :
 
     private var webView: WebView? = null
 
+    /** Held because SharedPreferences only keeps a weak reference to it. */
+    private var settingsListener: SharedPreferences.OnSharedPreferenceChangeListener? = null
+
     /**
      * Opening an app from the panel.
      *
@@ -90,6 +94,11 @@ class HubOverlay(context: Context) :
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         settings = Settings.snapshot(this)
+
+        // Settings and the overlay share a process, so a module switched on next door shows up
+        // here as soon as it's written - no lifecycle callback needed. Only the layout is
+        // re-read: refetching on every checkbox tick in the settings screen would be waste.
+        settingsListener = Settings.observe(this) { settings = Settings.snapshot(this) }
 
         savedStateRegistryController.performRestore(null) // must precede ON_CREATE
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
@@ -134,6 +143,7 @@ class HubOverlay(context: Context) :
                 HubScreen(
                     settings = settings,
                     refreshKey = refreshKey,
+                    onRefresh = ::reload,
                     onWebView = { webView = it },
                     modifier = Modifier
                         .fillMaxSize()
@@ -155,10 +165,28 @@ class HubOverlay(context: Context) :
         super.setState(newState)
         // Snap for the paths that never scroll: opened programmatically, or restored open.
         when (newState) {
-            PanelState.OPEN_AS_DRAWER, PanelState.OPEN_AS_LAYER -> progress = 1f
+            PanelState.OPEN_AS_DRAWER, PanelState.OPEN_AS_LAYER -> {
+                progress = 1f
+                // The panel coming open is the one event the launcher always sends. onResume is
+                // not: the launcher is free never to report an activity state, and when it
+                // doesn't, a module switched on in settings would never appear here.
+                reload()
+            }
             PanelState.CLOSED -> progress = 0f
             else -> Unit
         }
+    }
+
+    /**
+     * Pick up everything that can have changed while the panel was away: which modules are on and
+     * in what order, their options, and the data behind them.
+     *
+     * Re-reading the settings is the half that's easy to forget - bumping [refreshKey] alone
+     * refetches contacts and the weather into a layout that's still the old one.
+     */
+    private fun reload() {
+        settings = Settings.snapshot(this)
+        refreshKey++
     }
 
     override fun onBackPressed() {
@@ -175,9 +203,7 @@ class HubOverlay(context: Context) :
         super.onResume()
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
         webView?.onResume()
-        // Pick up anything changed in settings while the overlay stayed alive.
-        settings = Settings.snapshot(this)
-        refreshKey++
+        reload()
     }
 
     override fun onPause() {
@@ -193,6 +219,8 @@ class HubOverlay(context: Context) :
 
     override fun onDestroy() {
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
+        settingsListener?.let { Settings.stopObserving(this, it) }
+        settingsListener = null
         webView?.destroy()
         webView = null
         super.onDestroy()

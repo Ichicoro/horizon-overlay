@@ -1,7 +1,8 @@
 package sh.zelda.htmlfeed.hub
 
+import android.content.Context
+import android.content.Intent
 import androidx.core.net.toUri
-import sh.zelda.htmlfeed.WeatherPlace
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -39,14 +40,29 @@ data class WeatherReport(
  */
 object WeatherRepository {
     private const val FORECAST = "https://api.open-meteo.com/v1/forecast"
-    private const val GEOCODE = "https://geocoding-api.open-meteo.com/v1/search"
     private val CACHE_TTL_MS = TimeUnit.MINUTES.toMillis(15)
 
     private var cacheKey: String? = null
     private var cached: WeatherReport? = null
 
+    /** Drops the cache so the next [load] really goes to the network. */
+    fun invalidate() {
+        cacheKey = null
+        cached = null
+    }
+
+    /**
+     * Locates the phone, then forecasts for wherever that is. [LocationUnavailable] is the
+     * failure the card tells apart, since it's the one the user can do something about.
+     */
+    suspend fun loadCurrent(context: Context, metric: Boolean): Result<WeatherReport> {
+        val place = LocationRepository.current(context)
+            ?: return Result.failure(LocationUnavailable())
+        return load(place, metric)
+    }
+
     suspend fun load(place: WeatherPlace, metric: Boolean): Result<WeatherReport> {
-        val key = "${place.latitude},${place.longitude},$metric"
+        val key = cacheKey(place, metric)
         cached?.let { hit ->
             if (cacheKey == key && System.currentTimeMillis() - hit.fetchedAt < CACHE_TTL_MS) {
                 return Result.success(hit)
@@ -58,9 +74,12 @@ object WeatherRepository {
         }
     }
 
-    /** Typing a city name in settings; returns a few candidates to disambiguate. */
-    suspend fun search(query: String): Result<List<WeatherPlace>> =
-        if (query.isBlank()) Result.success(emptyList()) else onIo { fetchPlaces(query) }
+    /**
+     * Coordinates rounded to about a kilometre. A fix drifts by a few metres between reads, and
+     * on the raw numbers that would miss the cache every time the panel is opened.
+     */
+    private fun cacheKey(place: WeatherPlace, metric: Boolean): String =
+        "%.2f,%.2f,%s".format(place.latitude, place.longitude, metric)
 
     private fun fetchForecast(place: WeatherPlace, metric: Boolean): WeatherReport {
         val url = FORECAST.toUri().buildUpon()
@@ -77,31 +96,7 @@ object WeatherRepository {
         return parseForecast(JSONObject(getString(url)), place, metric)
     }
 
-    private fun fetchPlaces(query: String): List<WeatherPlace> {
-        val url = GEOCODE.toUri().buildUpon()
-            .appendQueryParameter("name", query.trim())
-            .appendQueryParameter("count", "6")
-            .appendQueryParameter("language", "en")
-            .appendQueryParameter("format", "json")
-            .build()
-            .toString()
-        val results = JSONObject(getString(url)).optJSONArray("results") ?: return emptyList()
-        return (0 until results.length()).map { i ->
-            val item = results.getJSONObject(i)
-            val label = listOfNotNull(
-                item.optString("name").takeIf { it.isNotBlank() },
-                item.optString("admin1").takeIf { it.isNotBlank() },
-                item.optString("country").takeIf { it.isNotBlank() },
-            ).joinToString(", ")
-            WeatherPlace(
-                name = label,
-                latitude = item.getDouble("latitude"),
-                longitude = item.getDouble("longitude"),
-            )
-        }
-    }
-
-    /** Both calls are blocking HTTP, and both are started from a composition. */
+    /** The fetch is blocking HTTP, and it's started from a composition. */
     private suspend fun <T> onIo(block: () -> T): Result<T> =
         withContext(Dispatchers.IO) { runCatching(block) }
 
@@ -169,6 +164,20 @@ object WeatherRepository {
         }
     }
 }
+
+/** No permission, no provider, or no fix in time - told apart from a failed forecast fetch. */
+class LocationUnavailable : Exception("No location fix")
+
+/** Pixel's own weather app, which is where a tap on the card goes. */
+private const val PIXEL_WEATHER_PACKAGE = "com.google.android.apps.weather"
+
+/**
+ * Opens Pixel Weather, falling back to the Google app's weather card when it isn't installed -
+ * on a non-Pixel there's no system weather app to hand off to.
+ */
+fun weatherAppIntent(context: Context): Intent =
+    context.packageManager.getLaunchIntentForPackage(PIXEL_WEATHER_PACKAGE)
+        ?: Intent(Intent.ACTION_VIEW, "https://www.google.com/search?q=weather".toUri())
 
 /** WMO weather interpretation codes, as Open-Meteo reports them. */
 object WeatherCodes {

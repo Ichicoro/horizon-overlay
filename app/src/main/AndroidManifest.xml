@@ -1,8 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Weather. -->
+    <!-- Weather. The forecast is for wherever the phone is, so the module needs a fix; coarse
+         is a forecast's resolution anyway. Asked for at runtime like the two below. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- The panel is a service the launcher binds, so this app never counts as on screen while
+         it's open and a foreground-only grant has every read rejected by appops. Without this
+         the weather card can only show the fix the settings screen last stored. -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <!-- Both are asked for at runtime, from the settings screen; the modules that need them
          show a placeholder until then. -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
@@ -12,6 +18,22 @@
          it as the launcher's window, and tapping a card would otherwise be dropped with
          BAL_BLOCK. Granted from the settings screen. -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
+    <!-- Package visibility: without these, resolveActivity for a maps app always comes back
+         null on Android 11+ and every destination would fall back to the generic map pin. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="google.navigation" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="geo" />
+        </intent>
+        <!-- Pixel Weather, which a tap on the weather card opens. Named outright because it's
+             looked up by package rather than resolved from an intent. -->
+        <package android:name="com.google.android.apps.weather" />
+    </queries>
 
     <application
         android:icon="@android:drawable/sym_def_app_icon"

@@ -173,7 +173,7 @@ private suspend fun loadThumbnail(context: Context, contact: QuickContact): Imag
  * stay in the wallpaper's palette rather than a set of colors picked here.
  */
 @Composable
-private fun avatarColors(name: String): Pair<Color, Color> {
+internal fun avatarColors(name: String): Pair<Color, Color> {
     val scheme = MaterialTheme.colorScheme
     val palette = listOf(
         scheme.primaryContainer to scheme.onPrimaryContainer,

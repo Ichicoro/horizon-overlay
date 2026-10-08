@@ -14,6 +14,7 @@ enum class HubModule(
     CLOCK("clock", "Clock", "Time, date, and a greeting", pinned = true),
     CONTACTS("contacts", "Contacts", "Favorites, tap to open or call"),
     WEATHER("weather", "Weather", "Now and the next few hours"),
+    NAVIGATION("navigation", "Quick navigation", "Contacts with an address, tap for directions"),
     AGENDA("agenda", "Agenda", "What's coming up on your calendar"),
     WEB("web", "Web page", "Any URL, in a WebView");
 
